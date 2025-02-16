@@ -1,0 +1,12 @@
+name: http-server
+channels:
+  - conda-forge
+prefix: /Users/liam/miniforge3/envs/http-server
+dependencies:
+  - python=3.13
+  - pre-commit
+  - black
+  - ruff
+  - pip
+  - pip:
+      - -r requirements-dev.txt
