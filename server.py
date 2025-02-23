@@ -22,19 +22,14 @@ PORT = 65535
 #             if not data: break
 #             conn.sendall(data) # Continues sending data using send() until all data is sent
 
-## MULTI CONN SERVER USING SELECTORS
-lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-lsock.bind((HOST, PORT))
-lsock.listen()
-print(f"Listening on {(HOST, PORT)}")
-lsock.setblocking(False)
-sel.register(lsock, selectors.EVENT_READ, data=None)
-
 def accept_wrapper(sock):
     conn, addr = sock.accept()  # Should be ready to read
     print(f"Accepted connection from {addr}")
     conn.setblocking(False)
     data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"")
+    # SimpleNamespace is a simple object that makes it easy to del or assign attributes easily without having to first define  a class.
+    # Printing SimpleNamespace objects will show the attributes and their values.
+    # basically a wrapper over a dict that allows you to access the keys as attributes
     events = selectors.EVENT_READ | selectors.EVENT_WRITE
     sel.register(conn, events, data=data)
 
@@ -55,13 +50,27 @@ def service_connection(key, mask):
             sent = sock.send(data.outb)  # Should be ready to write
             data.outb = data.outb[sent:]
 
+lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+lsock.bind((HOST, PORT))
+lsock.listen()
+print(f"Listening on {(HOST, PORT)}")
+lsock.setblocking(False) # Non-blocking mode. Return immediately. Need a way of handling operations that would block
+sel.register(lsock, selectors.EVENT_READ, data=None) # Uses selectors to monitor the listening socket
+
 try:
-    while True:
+    while True: # Event loop
         events = sel.select(timeout=None)
+        i=0
         for key, mask in events:
+            print(f"Event {i}")
+            i+=1
+            print("key:", key)
+            print("mask:", mask)
             if key.data is None:
+                # We know it is the listening socket and we should accept() on it
                 accept_wrapper(key.fileobj)
             else:
+                # Client sokcet alreadsy accepted, we should service the connection
                 service_connection(key, mask)
 except KeyboardInterrupt:
     print("Caught keyboard interrupt, exiting")
