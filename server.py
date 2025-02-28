@@ -23,10 +23,10 @@ PORT = 65535
 #             conn.sendall(data) # Continues sending data using send() until all data is sent
 
 def accept_wrapper(sock):
-    conn, addr = sock.accept()  # Should be ready to read
+    conn, addr = sock.accept()
     print(f"Accepted connection from {addr}")
     conn.setblocking(False)
-    data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"")
+    data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"") # inb and outb are byte buffersx
     # SimpleNamespace is a simple object that makes it easy to del or assign attributes easily without having to first define  a class.
     # Printing SimpleNamespace objects will show the attributes and their values.
     # basically a wrapper over a dict that allows you to access the keys as attributes
@@ -34,21 +34,28 @@ def accept_wrapper(sock):
     sel.register(conn, events, data=data)
 
 def service_connection(key, mask):
-    sock = key.fileobj
-    data = key.data
+    """
+    Assumed a well-behaved client (That wil close its connection)
+    """
+    sock = key.fileobj # Socket object
+    data = key.data # SimpleNamespace object
     if mask & selectors.EVENT_READ:
         recv_data = sock.recv(1024)  # Should be ready to read
         if recv_data:
-            data.outb += recv_data
-        else:
-            print(f"Closing connection to {data.addr}")
+            # data.outb += recv_data
+            print(f"Received {recv_data!r} from connection {data.connid}")
+            data.recv_total += len(recv_data)
+        if not recv_data or data.recv_total == data.msg_total:
+            print(f"Closing connection {data.connid}")
             sel.unregister(sock)
             sock.close()
     if mask & selectors.EVENT_WRITE:
+        if not data.outb and data.messages:
+            data.outb = data.messages.pop(0)
         if data.outb:
-            print(f"Echoing {data.outb!r} to {data.addr}")
-            sent = sock.send(data.outb)  # Should be ready to write
-            data.outb = data.outb[sent:]
+            print(f"Sending {data.outb!r} to connection {data.connid}")
+            sent = sock.send(data.outb)  # Returns number of bytes sent
+            data.outb = data.outb[sent:] # Removes the sent data from the buffer
 
 lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 lsock.bind((HOST, PORT))
@@ -70,7 +77,7 @@ try:
                 # We know it is the listening socket and we should accept() on it
                 accept_wrapper(key.fileobj)
             else:
-                # Client sokcet alreadsy accepted, we should service the connection
+                # Client socket alreadsy accepted, we should service the connection
                 service_connection(key, mask)
 except KeyboardInterrupt:
     print("Caught keyboard interrupt, exiting")
