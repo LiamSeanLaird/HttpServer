@@ -23,3 +23,34 @@ def start_connections(host, port, num_conns):
             outb=b"",
         )
         sel.register(sock, events, data=data)
+
+def service_connection(key, mask):
+    sock = key.fileobj
+    data = key.data
+    if mask & selectors.EVENT_READ:
+        recv_data = sock.recv(1024)
+        if recv_data:
+            print(f"Received {recv_data!r} from connection {data.connid}")
+            data.recv_total += len(recv_data)
+    if mask & selectors.EVENT_WRITE:
+        if not data.outb and data.messages:
+            data.outb = data.messages.pop(0)
+        if data.outb:
+            sent = sock.send(data.outb)
+            data.outb = data.outb[sent:]
+
+def run_client(host, port, num_conns):
+    start_connections(host, port, num_conns)
+    try:
+        while True:
+            events = sel.select(timeout=None)
+            for key, mask in events:
+                if key.data is None:
+                    continue
+                service_connection(key, mask)
+    except KeyboardInterrupt:
+        print("Caught keyboard interrupt, exiting")
+    finally:
+        sel.close()
+
+run_client('localhost', 65535, 2)

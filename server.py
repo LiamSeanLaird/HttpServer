@@ -26,7 +26,15 @@ def accept_wrapper(sock):
     conn, addr = sock.accept()
     print(f"Accepted connection from {addr}")
     conn.setblocking(False)
-    data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"") # inb and outb are byte buffersx
+    data = types.SimpleNamespace(
+        connid=None,  # Initially no connection ID
+        addr=addr,
+        inb=b"", # Incoming data buffer
+        outb=b"", # Outgoing data buffer
+        recv_total=0,
+        msg_total=0,
+        messages=[]
+    )
     # SimpleNamespace is a simple object that makes it easy to del or assign attributes easily without having to first define  a class.
     # Printing SimpleNamespace objects will show the attributes and their values.
     # basically a wrapper over a dict that allows you to access the keys as attributes
@@ -50,6 +58,7 @@ def service_connection(key, mask):
             sel.unregister(sock)
             sock.close()
     if mask & selectors.EVENT_WRITE:
+        print(f"data.messages: {data.messages}")
         if not data.outb and data.messages:
             data.outb = data.messages.pop(0)
         if data.outb:
@@ -71,13 +80,10 @@ try:
         for key, mask in events:
             print(f"Event {i}")
             i+=1
-            print("key:", key)
-            print("mask:", mask)
             if key.data is None:
                 # We know it is the listening socket and we should accept() on it
                 accept_wrapper(key.fileobj)
             else:
-                # Client socket alreadsy accepted, we should service the connection
                 service_connection(key, mask)
 except KeyboardInterrupt:
     print("Caught keyboard interrupt, exiting")
